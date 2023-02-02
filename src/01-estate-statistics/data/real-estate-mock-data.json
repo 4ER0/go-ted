@@ -1,0 +1,29 @@
+[
+  {
+    "schlüssel": 10000,
+    "gemeinde": "Stadt1",
+    "gesamt": 1000,
+    "wohneigentum_bewohnt": 500,
+    "vermietet": 400,
+    "ferienwohnung": 60,
+    "leehrstand": 40
+  },
+  {
+    "schlüssel": 2000,
+    "gemeinde": "Stadt2",
+    "gesamt": 1000,
+    "wohneigentum_bewohnt": 500,
+    "vermietet": 400,
+    "ferienwohnung": 60,
+    "leehrstand": 40
+  },
+  {
+    "schlüssel": 3000,
+    "gemeinde": "Stadt3",
+    "gesamt": 1000,
+    "wohneigentum_bewohnt": 500,
+    "vermietet": 400,
+    "ferienwohnung": 60,
+    "leehrstand": 40
+  }
+]
