@@ -81,7 +81,7 @@ func calculateRentedPercentage(es []model.RealEstate, key string, c chan rentedR
 	var rented float64
 	var count float64
 	for _, e := range es {
-		if se := fmt.Sprintf("%08d", e.Key); key == "" || strings.HasPrefix(se, key) {
+		if se := fmt.Sprintf("%08d", e.Key); strings.HasPrefix(se, key) {
 			sum = sum + float64(e.Total)
 			rented = rented + float64(e.Rented)
 			count++
@@ -106,7 +106,7 @@ func calculateEmptyPercentage(es []model.RealEstate, key string, c chan emptyRes
 	var empty float64
 	var count float64
 	for _, e := range es {
-		if se := fmt.Sprintf("%08d", e.Key); key == "" || strings.HasPrefix(se, key) {
+		if se := fmt.Sprintf("%08d", e.Key); strings.HasPrefix(se, key) {
 			sum = sum + float64(e.Total)
 			empty = empty + float64(e.Empty)
 			count++
@@ -129,7 +129,6 @@ func calculateEmptyPercentage(es []model.RealEstate, key string, c chan emptyRes
 }
 
 func (h *RealEstateInfoHandler) DefaultHandler(w http.ResponseWriter, r *http.Request) {
-	time.Sleep(10 * time.Second)
 	http.Error(w, "Unknown URL", http.StatusNotFound)
 	h.l.WithField("url", r.URL).Warnf("Unknown URL invoked")
 	return
