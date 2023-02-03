@@ -11,6 +11,18 @@ import (
 	"time"
 )
 
+type rentedResult struct {
+	AverageRentedPercentage float64
+	TotalRented             int
+}
+
+type emptyResult struct {
+	AverageEmptyPercentage float64
+	RecordCount            int
+	TotalEstates           int
+	TotalEmpty             int
+}
+
 type RealEstateInfoHandler struct {
 	l *logrus.Logger
 	p *port.RealEstatePort
@@ -23,11 +35,6 @@ func NewRealEstateInfoHandler(l *logrus.Logger, p *port.RealEstatePort) *RealEst
 // GetAverageEmptyEstates returns the average number of empty estates for given key
 func (h *RealEstateInfoHandler) GetAverageEmptyEstates(w http.ResponseWriter, r *http.Request) {
 	key := r.URL.Query().Get("key")
-	if key == "" {
-		http.Error(w, "Missing key parameter", http.StatusBadRequest)
-		h.l.Warnf("Missing key parameter")
-		return
-	}
 
 	es, err := h.p.GetRealEstateInfo()
 	if err != nil {
@@ -36,11 +43,70 @@ func (h *RealEstateInfoHandler) GetAverageEmptyEstates(w http.ResponseWriter, r 
 		return
 	}
 
+	start := time.Now()
+	cRented := make(chan rentedResult)
+	cEmpty := make(chan emptyResult)
+	go calculateEmptyPercentage(es, key, cEmpty)
+	go calculateRentedPercentage(es, key, cRented)
+
+	empty := <-cEmpty
+	rented := <-cRented
+	end := time.Now()
+	passed := end.Sub(start)
+	h.l.WithField("duration", passed).Infof("Calculation took %s", passed)
+
+	res := model.AverageResponse{
+		AverageEmptyPercentage:  empty.AverageEmptyPercentage,
+		AverageRentedPercentage: rented.AverageRentedPercentage,
+		RecordCount:             empty.RecordCount,
+		TotalEstates:            empty.TotalEstates,
+		TotalEmpty:              empty.TotalEmpty,
+		TotalRented:             rented.TotalRented,
+		Key:                     key,
+	}
+
+	bs, err := json.Marshal(res)
+	if err != nil {
+		http.Error(w, "Error marshalling response", http.StatusInternalServerError)
+		h.l.WithError(err).Errorf("Error marshalling response")
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(bs)
+}
+
+func calculateRentedPercentage(es []model.RealEstate, key string, c chan rentedResult) {
+	var sum float64
+	var rented float64
+	var count float64
+	for _, e := range es {
+		if se := fmt.Sprintf("%08d", e.Key); key == "" || strings.HasPrefix(se, key) {
+			sum = sum + float64(e.Total)
+			rented = rented + float64(e.Rented)
+			count++
+		}
+	}
+
+	avgSum := sum / count
+	avgRented := rented / count
+	var percentage float64
+	if avgSum > 0 {
+		percentage = (avgRented * 100.0) / avgSum
+	}
+
+	c <- rentedResult{
+		AverageRentedPercentage: percentage,
+		TotalRented:             int(rented),
+	}
+}
+
+func calculateEmptyPercentage(es []model.RealEstate, key string, c chan emptyResult) {
 	var sum float64
 	var empty float64
 	var count float64
 	for _, e := range es {
-		if se := fmt.Sprintf("%08d", e.Key); strings.HasPrefix(se, key) {
+		if se := fmt.Sprintf("%08d", e.Key); key == "" || strings.HasPrefix(se, key) {
 			sum = sum + float64(e.Total)
 			empty = empty + float64(e.Empty)
 			count++
@@ -54,23 +120,12 @@ func (h *RealEstateInfoHandler) GetAverageEmptyEstates(w http.ResponseWriter, r 
 		percentage = (avgEmpty * 100.0) / avgSum
 	}
 
-	res := model.AverageResponse{
-		AveragePercentage: percentage,
-		RecordCount:       int(count),
-		TotalEstates:      int(sum),
-		TotalEmpty:        int(empty),
-		Key:               key,
+	c <- emptyResult{
+		AverageEmptyPercentage: percentage,
+		RecordCount:            int(count),
+		TotalEstates:           int(sum),
+		TotalEmpty:             int(empty),
 	}
-
-	bs, err := json.Marshal(res)
-	if err != nil {
-		http.Error(w, "Error marshalling response", http.StatusInternalServerError)
-		h.l.WithError(err).Errorf("Error marshalling response")
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(bs)
 }
 
 func (h *RealEstateInfoHandler) DefaultHandler(w http.ResponseWriter, r *http.Request) {
