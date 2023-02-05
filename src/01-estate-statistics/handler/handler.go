@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"strings"
-	"time"
 )
 
 type rentedResult struct {
@@ -43,17 +42,7 @@ func (h *RealEstateInfoHandler) GetAverageEmptyEstates(w http.ResponseWriter, r 
 		return
 	}
 
-	start := time.Now()
-	cRented := make(chan rentedResult)
-	cEmpty := make(chan emptyResult)
-	go calculateEmptyPercentage(es, key, cEmpty)
-	go calculateRentedPercentage(es, key, cRented)
-
-	empty := <-cEmpty
-	rented := <-cRented
-	end := time.Now()
-	passed := end.Sub(start)
-	h.l.WithField("duration", passed).Infof("Calculation took %s", passed)
+	empty, rented := doCalc(es, key)
 
 	res := model.AverageResponse{
 		AverageEmptyPercentage:  empty.AverageEmptyPercentage,
@@ -74,6 +63,17 @@ func (h *RealEstateInfoHandler) GetAverageEmptyEstates(w http.ResponseWriter, r 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(bs)
+}
+
+func doCalc(es []model.RealEstate, key string) (emptyResult, rentedResult) {
+	cRented := make(chan rentedResult)
+	cEmpty := make(chan emptyResult)
+	go calculateEmptyPercentage(es, key, cEmpty)
+	go calculateRentedPercentage(es, key, cRented)
+
+	empty := <-cEmpty
+	rented := <-cRented
+	return empty, rented
 }
 
 func calculateRentedPercentage(es []model.RealEstate, key string, c chan rentedResult) {
